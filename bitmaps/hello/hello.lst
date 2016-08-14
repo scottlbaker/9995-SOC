@@ -1,0 +1,232 @@
+ AS V1.42 Beta [Bld 21] - source file hello.asm - page 1 - 8/14/2016 14:09:24
+TI 9995-SOC Hello World
+
+
+       1/       0 :                     
+       2/       0 :                     ;=======================================================
+       3/       0 :                     ;=======================================================
+       4/       0 :                     ;  9995-SOC Hello World
+       5/       0 :                     ;=======================================================
+       6/       0 :                     ;=======================================================
+       7/       0 :                     
+       8/       0 :                             Title   "TI 9995-SOC Hello World"
+       9/       0 :                     
+      10/       0 :                             relaxed ON
+      11/       0 :                             supmode ON
+      12/       0 :                     
+      13/       0 :                     ;=======================================================
+      14/       0 :                     ; Defines
+      15/       0 :                     ;=======================================================
+      16/       0 :                     
+      17/       0 :                     ; UART register addresses
+      18/       0 :                     ;
+      19/       0 : =F000H              u1cntl     equ   0xf000
+      20/       0 : =F000H              u1stat     equ   0xf000
+      21/       0 : =F001H              u1brsr     equ   0xf001
+      22/       0 : =F002H              u1mask     equ   0xf002
+      23/       0 : =F003H              u1data     equ   0xf003
+      24/       0 :                     
+      25/       0 :                     ; UART baud rate -> 115200
+      26/       0 :                     ;
+      27/       0 : =78E3H              baud       equ   0x78e3
+      28/       0 :                     
+      29/       0 :                     ; UART status/control register bits
+      30/       0 :                     ;
+      31/       0 : =40H                frmerr     equ   0x40
+      32/       0 : =20H                prterr     equ   0x20
+      33/       0 : =10H                ovrerr     equ   0x10
+      34/       0 : =8H                 txempt     equ   0x08
+      35/       0 : =4H                 txnotf     equ   0x04
+      36/       0 : =2H                 rxfull     equ   0x02
+      37/       0 : =1H                 rxnote     equ   0x01
+      38/       0 :                     
+      39/       0 :                     ; Timer register addresses
+      40/       0 :                     ;
+      41/       0 : =F008H              t1cntl     equ   0xf008
+      42/       0 : =F008H              t1stat     equ   0xf008
+      43/       0 : =F009H              t1icnt     equ   0xf009
+      44/       0 :                     
+      45/       0 :                     ;tm5sec    equ   0x0010   ; fast for debug
+      46/       0 :                     ;tmstrt    equ   0x03     ; fast for debug
+      47/       0 :                     
+      48/       0 : =1388H              tm5sec     equ   0x1388   ; 5 seconds
+      49/       0 : =1H                 tmstrt     equ   0x01     ; start timer
+      50/       0 : =1H                 tmdone     equ   0x01     ; timer done
+      51/       0 : =0H                 tmstop     equ   0x00     ; stop timer
+      52/       0 :                     
+      53/       0 :                     ; Port register address
+      54/       0 :                     ;
+      55/       0 : =F00CH              oporta     equ   0xf00c
+      56/       0 :                     
+      57/       0 :                     
+      58/       0 :                     ;===========================================================
+      59/       0 :                     ; Start Point
+      60/       0 :                     ;===========================================================
+ AS V1.42 Beta [Bld 21] - source file hello.asm - page 2 - 8/14/2016 14:09:24
+TI 9995-SOC Hello World
+
+
+      61/       0 :                                org   0x0000
+      62/       0 :                     
+      63/       0 : 0100                           word  wp1             ; initial WP
+      64/       2 : 0004                           word  start           ; initial PC
+      65/       4 :                     
+      66/       4 : 0300 0000           start      limi  0               ; disable interrupts
+      67/       8 : 0420 0072                      blwp  @callinit       ; init the UART
+      68/       C :                     
+      69/       C : 0202 0140           main       li    r2, hello       ; r1 gets string pointer
+      70/      10 : 0420 0076                      blwp  @callputs       ; print the string
+      71/      14 : 0420 007A                      blwp  @callwait       ; wait a few seconds
+      72/      18 : 10F9                           jmp   main            ; loop forever
+      73/      1A :                     
+      74/      1A :                     
+      75/      1A :                     ;===========================================================
+      76/      1A :                     ; Send a string to the UART
+      77/      1A :                     ;   r2 contains pointer to string
+      78/      1A :                     ;   r3 gets the next character
+      79/      1A :                     ;===========================================================
+      80/      1A : D0F2                puts       movb    *r2+, r3      ; load r5 with next char
+      81/      1C : 9003                           cb      r3, r0        ; check for end of string
+      82/      1E : 1301                           jeq     putx          ; exit if done
+      83/      20 : 1001                           jmp     putc          ; put a character
+      84/      22 : 0380                putx       rtwp
+      85/      24 :                     
+      86/      24 :                     
+      87/      24 :                     ;===========================================================
+      88/      24 :                     ; Send a single character in r3 to the UART
+      89/      24 :                     ;===========================================================
+      90/      24 : C120 F000           putc       mov     @u1stat, r4   ; read UART status
+      91/      28 : 0244 0004                      andi    r4, txnotf    ; check if TX full
+      92/      2C : 13FB                           jeq     putc          ; wait if full
+      93/      2E : D803 F003                      movb    r3, @u1data   ; put a character
+      94/      32 : 10F3                           jmp     puts          ; repeat
+      95/      34 :                     
+      96/      34 :                     
+      97/      34 :                     ;===========================================================
+      98/      34 :                     ; Initialize the UART
+      99/      34 :                     ;===========================================================
+     100/      34 : 0200 0000           inituart   li    r0, 0           ; r1 = 0
+     101/      38 : 0201 0001                      li    r1, 1           ; r1 = 1
+     102/      3C : 0202 78E3                      li    r2, baud
+     103/      40 : C802 F001                      mov   r2, @u1brsr     ; baud rate
+     104/      44 : 0202 0003                      li    r2, 3
+     105/      48 : C802 F000                      mov   r2, @u1cntl     ; enable tx and rx
+     106/      4C : 0380                           rtwp
+     107/      4E :                     
+     108/      4E :                     
+     109/      4E :                     ;===========================================================
+     110/      4E :                     ; Wait
+     111/      4E :                     ;===========================================================
+     112/      4E : 0205 1388           wait1      li      r5, tm5sec
+     113/      52 : C805 F009                      mov     r5, @t1icnt   ; initial count
+     114/      56 : 0205 0001                      li      r5, tmstrt
+     115/      5A : C805 F008                      mov     r5, @t1cntl   ; start timer
+     116/      5E : C160 F008           wait2      mov     @t1stat, R5
+     117/      62 : 0245 0001                      andi    r5, tmdone    ; check status
+     118/      66 : 13FB                           jeq     wait2         ; loop if not done
+     119/      68 : 0205 0000                      li      r5, tmstop
+     120/      6C : D805 F008                      movb    r5, @t1cntl   ; stop timer
+ AS V1.42 Beta [Bld 21] - source file hello.asm - page 3 - 8/14/2016 14:09:24
+TI 9995-SOC Hello World
+
+
+     121/      70 : 0380                           rtwp
+     122/      72 :                     
+     123/      72 :                     
+     124/      72 :                     ;===========================================================
+     125/      72 :                     ; Subroutine Pointers
+     126/      72 :                     ;===========================================================
+     127/      72 : 0100                callinit   word wp1
+     128/      74 : 0034                           word inituart
+     129/      76 :                     
+     130/      76 : 0100                callputs   word wp1
+     131/      78 : 001A                           word puts
+     132/      7A :                     
+     133/      7A : 0120                callwait   word wp2
+     134/      7C : 004E                           word wait1
+     135/      7E :                     
+     136/      7E :                     
+     137/      7E :                     ;===========================================================
+     138/      7E :                     ; Register workspaces
+     139/      7E :                     ;===========================================================
+     140/     100 :                                org   0x0100
+     141/     100 :                     
+     142/     100 : 0000 0000 0000 0000 wp1        word  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                    0000 0000 0000 0000 
+                    0000 0000 0000 0000 
+                    0000 0000 0000 0000 
+     143/     120 : 0000 0000 0000 0000 wp2        word  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+                    0000 0000 0000 0000 
+                    0000 0000 0000 0000 
+                    0000 0000 0000 0000 
+     144/     140 :                     
+     145/     140 :                     
+     146/     140 :                     ;===========================================================
+     147/     140 :                     ; Strings
+     148/     140 :                     ;===========================================================
+     149/     140 : 0D0A                hello      byte  0x0d,0x0a
+     150/     142 : 4865 6C6C 6F20 576F            byte  'H','e','l','l','o',' ','W','o','r','l','d',' '
+                    726C 6420           
+     151/     14E : 6672 6F6D 2039 3939            byte  'f','r','o','m',' ','9','9','9','5','-'
+                    352D                
+     152/     158 : 534F 430D 0A00 0000            byte  'S','O','C',0x0d,0x0a,0,0,0
+     153/     160 :                     
+     154/     160 :                                end
+ AS V1.42 Beta [Bld 21] - source file hello.asm - page 4 - 8/14/2016 14:09:25
+TI 9995-SOC Hello World
+
+
+  symbol table (* = unused):
+  ------------------------
+
+*ARCHITECTURE :  i386-unknown-win32 - |  BAUD :                        78E3 - |
+*BIGENDIAN :                      0 - | *BRANCHEXT :                      0 - |
+ CALLINIT :                      72 C |  CALLPUTS :                      76 C |
+ CALLWAIT :                      7A C | *CASESENSITIVE :                  0 - |
+*CONSTPI :        3.141592653589793 - | *DATE :                   8/14/2016 - |
+*FALSE :                          0 - | *FRMERR :                        40 - |
+*FULLPMMU :                       1 - | *HAS64 :                          1 - |
+*HASFPU :                         0 - | *HASPMMU :                        0 - |
+ HELLO :                        140 C | *INEXTMODE :                      0 - |
+ INITUART :                      34 C | *INLWORDMODE :                    0 - |
+*INMAXMODE :                      0 - | *INSRCMODE :                      0 - |
+*INSUPMODE :                      1 - | *LISTON :                         1 - |
+*MACEXP :                         1 - |  MAIN :                           C C |
+*MOMCPU :                      9900 - | *MOMCPUNAME :               TMS9900 - |
+*NESTMAX :                      100 - | *OPORTA :                      F00C - |
+*OVRERR :                        10 - | *PACKING :                        0 - |
+*PADDING :                        1 - | *PRTERR :                        20 - |
+ PUTC :                          24 C |  PUTS :                          1A C |
+ PUTX :                          22 C | *RELAXED :                        1 - |
+*RXFULL :                         2 - | *RXNOTE :                         1 - |
+ START :                          4 C |  T1CNTL :                      F008 - |
+ T1ICNT :                      F009 - |  T1STAT :                      F008 - |
+*TIME :                    14:09:24 - |  TM5SEC :                      1388 - |
+ TMDONE :                         1 - |  TMSTOP :                         0 - |
+ TMSTRT :                         1 - | *TRUE :                           1 - |
+*TXEMPT :                         8 - |  TXNOTF :                         4 - |
+ U1BRSR :                      F001 - |  U1CNTL :                      F000 - |
+ U1DATA :                      F003 - | *U1MASK :                      F002 - |
+ U1STAT :                      F000 - | *VERSION :                     142F - |
+ WAIT1 :                         4E C |  WAIT2 :                         5E C |
+ WP1 :                          100 C |  WP2 :                          120 C |
+
+     62 symbols
+     35 unused symbols
+
+ AS V1.42 Beta [Bld 21] - source file hello.asm - page 5 - 8/14/2016 14:09:25
+TI 9995-SOC Hello World
+
+
+  codepages:
+  ----------
+
+STANDARD (0 changed characters)
+
+
+0.20 seconds assembly time
+
+    155 lines source file
+      2 passes
+      0 errors
+      0 warnings
